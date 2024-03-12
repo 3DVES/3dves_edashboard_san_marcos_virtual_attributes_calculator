@@ -1,13 +1,17 @@
-from pymongo import MongoClient
+import requests
+from dotenv import dotenv_values
 
-client = MongoClient('mongodb://172.31.43.75:27017/')
-#client = MongoClient('mongodb://52.36.190.119:27017')
-db = client['sanmarcos']
-collection = db['attributes']
+env = dotenv_values(".env")
+url = env["LOGIN_URL"]
+# client = MongoClient('mongodb://172.31.43.75:27017/')
+# #client = MongoClient('mongodb://52.36.190.119:27017')
+# db = client['sanmarcos']
+# collection = db['attributes']
+# attributeHistoriesCollection = db['attributehistories']
 
 def attribute_current_value(id):
-  for document in collection.find({"_id": id}):
-    return document['currentValue']
+  response = requests.get(f"{url}/attributes/{id}")
+  return response.json().get("currentValue")
   
 def hrc_energy(ids):
   electric_meter = attribute_current_value(30567)
@@ -39,7 +43,7 @@ def chiller_plant_without_hrc_tonnage(ids):
   ch1_current_status = float(attribute_current_value(ch1_status_id))
   ch2_current_status = float(attribute_current_value(ch2_status_id))
   ch3_current_status = float(attribute_current_value(ch3_status_id))
-  if (current_supply_flow <= 0 or current_supply_temp <= 0 or (current_return_temp <= 0 and ch1_current_status <= 0 and ch2_current_status <= 0 and ch3_current_status <= 0)):
+  if (current_supply_flow <= 0 or current_supply_temp <= 0 or current_return_temp <= 0 or (ch1_current_status <= 0 and ch2_current_status <= 0 and ch3_current_status <= 0)):
     return 0
   else:
     return current_supply_flow*(abs(current_return_temp - current_supply_temp))/24
@@ -54,7 +58,10 @@ def cup_chiller_efficiency(ids):
     return 0
   else:
     return (current_ch1_energy+current_ch2_energy+current_ch3_energy)/current_cup_supply_tonn
-  
+def efficiency_equation(numerator:list, demominator:list):
+  numerator_val = sum([float(attribute_current_value(i)) for i in numerator])
+  denominator_val = sum([float(attribute_current_value(i)) for i in demominator])
+  return numerator_val / denominator_val if round(denominator_val,2) > 0 else 0
 def cup_cooling_plant_efficiency_part_b(ids):
   chw_pumps_energy_without_hrc_id, total_heat_reject_energy_id, cup_supply_tonn_id = ids
   current_chw_pumps_energy_without_hrc = float(attribute_current_value(chw_pumps_energy_without_hrc_id))
@@ -114,4 +121,4 @@ def hwp_eff(ids):
   if (current_gas_used_hhw <=0 or current_pumping_energy <=0):
     return 0
   else:
-    return 1e3*current_hhw_supply_out/(current_gas_used_hhw + 3.41214*current_pumping_energy)
+    return 1e5*current_hhw_supply_out/(current_gas_used_hhw + 3.41214*current_pumping_energy) # Return in percentage 
